@@ -36,7 +36,7 @@
 ;; You can get a complete list of your available vagrant machines with
 ;; `M-x vagrant-list-machines`.
 ;;
-;; The `vagrant' TRAMP method works by using an custom ssh configfile
+;; The `vagrant' TRAMP method work by using an custom ssh configfile
 ;; (`vagrant-ssh-config-file') for vagrant machines, so you need to add manually
 ;; the ssh-config of a machine with `M-x vagrant-add-ssh-config`.
 ;;
@@ -50,12 +50,8 @@
 ;;
 ;; + **The `vagrant' TRAMP method show already deleted machines**
 ;;
-;;   You need delete the file `vagrant-ssh-config-file'. You can use
-;;   `M-x vagrant-tramp-remove-ssh-config`.
-;;
-;;; TODO
-;; + [ ] Find a better way to invalidate TRAMP cache `tramp-cache-data'.
-;;   See: `tramp-parse-connection-properties'
+;;   You need to execute `M-x vagrant-tramp-cleanup-ssh-config` to cleanup the
+;;   vagrant ssh-config.
 ;;
 ;; [vagrant]: http://www.vagrantup.com/ "Vagrant"
 ;; [vagrant-info]: https://github.com/marsam/vagrant-info "vagrant-info plugin"
@@ -143,7 +139,7 @@
   (when (eq 'exit (process-status process))
     (if (zerop (process-exit-status process))
         (message "%s finished" (process-name process))
-      (signal 'vagrant-command-error (process-exit-status process)))))
+      (signal 'vagrant-command-error (list (format "%s exited with exit code %s" (process-name process) (process-exit-status process)))))))
 
 ;;;###autoload
 (defun vagrant-up-machine (id)
@@ -196,7 +192,7 @@
   (let* ((id (if (stringp id) (intern id) id))
          (machine (cdr-safe (assq id (vagrant-machines)))))
     (unless machine
-      (signal 'vagrant-machine-notfound id))
+      (signal 'vagrant-machine-notfound (list (format "Machine with ID='%s' not found" id))))
     (find-file (expand-file-name "Vagrantfile"
                                  (vagrant-machine-directory machine)))))
 
@@ -208,16 +204,16 @@
     (let ((exit-status (call-process vagrant-executable nil (current-buffer) nil "info-ssh" id)))
       (if (zerop exit-status)
           (write-region (buffer-string) nil vagrant-ssh-config-file 'append)
-        (signal 'vagrant-command-error exit-status)))))
+        (signal 'vagrant-command-error (list (buffer-string)))))))
 
 (defun vagrant-read-machine-id ()
   "Read a vagrant machine id."
   (list (if (and (eq major-mode 'vagrant-machine-list-mode) (tabulated-list-get-id))
             (symbol-name (tabulated-list-get-id))
-          (ido-completing-read "vagrant machine id: "
-                               (mapcar #'(lambda (e) (symbol-name (car e))) (vagrant-machines))
-                               nil nil nil nil
-                               (tabulated-list-get-id)))))
+          (completing-read "vagrant machine id: "
+                           (mapcar #'(lambda (e) (symbol-name (car e))) (vagrant-machines))
+                           nil nil nil nil
+                           (tabulated-list-get-id)))))
 
 ;;;###autoload
 (defun vagrant-reload-machines ()
@@ -240,14 +236,14 @@
 
 (defvar vagrant-machine-list-mode-map
   (let ((map (make-keymap)))
-    (define-key map (kbd "u") 'vagrant-up-machine)
-    (define-key map (kbd "h") 'vagrant-halt-machine)
-    (define-key map (kbd "r") 'vagrant-reload-machine)
-    (define-key map (kbd "d") 'vagrant-destroy-machine)
-    (define-key map (kbd "s") 'vagrant-suspend-machine)
-    (define-key map (kbd "p") 'vagrant-provision-machine)
-    (define-key map (kbd "e") 'vagrant-edit-vagrantfile)
-    (define-key map (kbd "S") 'vagrant-add-ssh-config)
+    (define-key map (kbd "U") 'vagrant-up-machine)
+    (define-key map (kbd "H") 'vagrant-halt-machine)
+    (define-key map (kbd "R") 'vagrant-reload-machine)
+    (define-key map (kbd "D") 'vagrant-destroy-machine)
+    (define-key map (kbd "S") 'vagrant-suspend-machine)
+    (define-key map (kbd "P") 'vagrant-provision-machine)
+    (define-key map (kbd "E") 'vagrant-edit-vagrantfile)
+    (define-key map (kbd "C") 'vagrant-add-ssh-config)
     map)
   "Keymap for vagrant-list-machines-mode.")
 
@@ -255,13 +251,13 @@
   "List vagrant machines.
 
 \\{vagrant-machine-list-mode-map}"
-  (setq tabulated-list-entries #'vagrant-generate-table-entries)
   (setq tabulated-list-format [("id" 7 nil)
                                ("name" 10 nil)
                                ("provider" 10 nil)
                                ("state" 10 nil)
                                ("directory" 60 nil)])
   (add-hook 'tabulated-list-revert-hook 'vagrant-reload-machines nil t)
+  (setq tabulated-list-entries 'vagrant-generate-table-entries)
   (tabulated-list-init-header))
 
 ;;;###autoload
@@ -278,13 +274,31 @@
   (unless (file-exists-p filename)
     (call-process "touch" nil nil nil filename)))
 
+(defun vagrant-delete-file-if-exists (filename)
+  "Delete file with FILENAME if exists."
+  (when (file-exists-p filename)
+    (delete-file filename)))
+
 ;;;###autoload
-(defun vagrant-tramp-remove-ssh-config ()
-  "Remove `vagrant-ssh-config-file' if exists."
+(defun vagrant-tramp-cleanup-ssh-config ()
+  "Cleanup vagrant ssh-config.
+
+This involves:
++ Remove `vagrant-ssh-config-file' if exists.
++ Remove vagrant entries from `tramp-cache-data'.
++ Dump `tramp-persistency-file-name'."
   (interactive)
-  (when (file-exists-p vagrant-ssh-config-file)
-    (delete-file vagrant-ssh-config-file))
-  (setq tramp-cache-data-changed t))
+  (vagrant-delete-file-if-exists vagrant-ssh-config-file)
+  (vagrant-create-file-if-not-exists vagrant-ssh-config-file)
+  (maphash (lambda (key _value)
+             (when (and (and (vectorp key))
+                        (string-equal vagrant-tramp-method (tramp-file-name-method key)))
+               (remhash key tramp-cache-data)))
+           tramp-cache-data)
+  (setq tramp-cache-data-changed t)
+  (if (zerop (hash-table-count tramp-cache-data))
+      (vagrant-delete-file-if-exists tramp-persistency-file-name)
+    (tramp-dump-connection-properties)))
 
 ;;;###tramp-autoload
 (defconst vagrant-tramp-completion-function-alist
@@ -296,7 +310,7 @@
 (add-to-list 'tramp-methods
              `(,vagrant-tramp-method
                (tramp-login-program        "ssh")
-               (tramp-login-args           (("-l" "%u") ("-p" "%p") ("-e" "none")
+               (tramp-login-args           (("-l" "%u") ("-p" "%p") ("%c") ("-e" "none")
                                             ("%h") ("-F" ,vagrant-ssh-config-file)))
                (tramp-async-args           (("-q")))
                (tramp-remote-shell         "/bin/sh")

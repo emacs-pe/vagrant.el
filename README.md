@@ -16,7 +16,7 @@ To use this `vagrant.el` it's necessary to install the [vagrant-info][] plugin.
 You can get a complete list of your available vagrant machines with
 `M-x vagrant-list-machines`.
 
-The `vagrant` TRAMP method works by using an custom ssh configfile
+The `vagrant` TRAMP method work by using an custom ssh configfile
 (`vagrant-ssh-config-file`) for vagrant machines, so you need to add manually
 the ssh-config of a machine with `M-x vagrant-add-ssh-config`.
 
@@ -31,13 +31,8 @@ the ssh-config of a machine with `M-x vagrant-add-ssh-config`.
 
 + **The `vagrant` TRAMP method show already deleted machines**
 
-  You need delete the file `vagrant-ssh-config-file`. You can use
-  `M-x vagrant-tramp-remove-ssh-config`.
-
-### TODO
-
-+ [ ] Find a better way to invalidate TRAMP cache `tramp-cache-data`.
-  See: `tramp-parse-connection-properties`
+  You need to execute `M-x vagrant-tramp-cleanup-ssh-config` to cleanup the
+  vagrant ssh-config.
 
 [vagrant]: http://www.vagrantup.com/ "Vagrant"
 [vagrant-info]: https://github.com/marsam/vagrant-info "vagrant-info plugin"
@@ -109,9 +104,18 @@ Show the list of available vagrant machines.
 
 Create an empty file with name FILENAME.
 
-#### `(vagrant-tramp-remove-ssh-config)`
+#### `(vagrant-delete-file-if-exists FILENAME)`
 
-Remove `vagrant-ssh-config-file` if exists.
+Delete file with FILENAME if exists.
+
+#### `(vagrant-tramp-cleanup-ssh-config)`
+
+Cleanup vagrant ssh-config.
+
+This involves:
++ Remove `vagrant-ssh-config-file` if exists.
++ Remove vagrant entries from `tramp-cache-data`.
++ Dump `tramp-persistency-file-name`.
 
 -----
 <div style="padding-top:15px;color: #d0d0d0;">
