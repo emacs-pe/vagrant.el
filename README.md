@@ -1,11 +1,11 @@
 ## vagrant.el
-*Interacting with vagrant -*- lexical-binding: t -*-*
+*Interact with vagrant machines -*- lexical-binding: t; -*-*
 
 ---
 [![Travis build status](https://travis-ci.org/emacs-pe/vagrant.el.png?branch=master)](https://travis-ci.org/emacs-pe/vagrant.el)
 
-`vagrant.el` provides easy interaction with [vagrant][] also offers a
-`vagrant` TRAMP method to interact with vagrant machines.
+`vagrant.el` provides easy interaction with [vagrant][] also offers
+a `vagrant` TRAMP method to interact with vagrant machines.
 
 ### Installation
 
@@ -16,7 +16,7 @@ To use this `vagrant.el` it's necessary to install the [vagrant-info][] plugin.
 You can get a complete list of your available vagrant machines with
 `M-x vagrant-list-machines`.
 
-The `vagrant` TRAMP method work by using an custom ssh configfile
+The `vagrant` TRAMP method works by using an custom ssh configfile
 (`vagrant-ssh-config-file`) for vagrant machines, so you need to add manually
 the ssh-config of a machine with `M-x vagrant-add-ssh-config`.
 
@@ -39,14 +39,6 @@ the ssh-config of a machine with `M-x vagrant-add-ssh-config`.
 
 ### Function Documentation
 
-
-#### `(vagrant-machines)`
-
-Fetch the vagrant machines.
-
-#### `(vagrant-process-async &rest ARGS)`
-
-Start a vagrant process with ARGS and return the process object.
 
 #### `(vagrant-up-machine ID)`
 
@@ -84,29 +76,13 @@ Edit Vagrantfile of a vagrant machine with ID.
 
 Add `ssh-info` of a machine with ID to `vagrant-ssh-config-file`.
 
-#### `(vagrant-read-machine-id)`
-
-Read a vagrant machine id.
-
 #### `(vagrant-reload-machines)`
 
 Reload `vagrant-mahines`.
 
-#### `(vagrant-generate-table-entry ITEM)`
-
-Generate a tabulate mode entry from an ITEM.
-
 #### `(vagrant-list-machines)`
 
 Show the list of available vagrant machines.
-
-#### `(vagrant-create-file-if-not-exists FILENAME)`
-
-Create an empty file with name FILENAME.
-
-#### `(vagrant-delete-file-if-exists FILENAME)`
-
-Delete file with FILENAME if exists.
 
 #### `(vagrant-tramp-cleanup-ssh-config)`
 

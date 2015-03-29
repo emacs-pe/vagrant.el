@@ -1,12 +1,12 @@
-;;; vagrant.el --- Interacting with vagrant -*- lexical-binding: t -*-
+;;; vagrant.el --- Interact with vagrant machines -*- lexical-binding: t; -*-
 
-;; Copyright © 2014 Mario Rodas <marsam@users.noreply.github.com>
+;; Copyright (C) 2014 Mario Rodas <marsam@users.noreply.github.com>
 
 ;; Author: Mario Rodas <marsam@users.noreply.github.com>
 ;; URL: https://github.com/emacs-pe/vagrant.el
 ;; Keywords: vagrant, convenience
 ;; Version: 0.0.1
-;; Package-Requires: ((emacs "24") (cl-lib "0.5") (s "1.9.0"))
+;; Package-Requires: ((emacs "24") (cl-lib "0.5"))
 
 ;; This file is NOT part of GNU Emacs.
 
@@ -26,9 +26,9 @@
 ;;; Commentary:
 ;; [![Travis build status](https://travis-ci.org/emacs-pe/vagrant.el.png?branch=master)](https://travis-ci.org/emacs-pe/vagrant.el)
 ;;
-;; `vagrant.el' provides easy interaction with [vagrant][] also offers a
-;; `vagrant' TRAMP method to interact with vagrant machines.
-
+;; `vagrant.el' provides easy interaction with [vagrant][] also offers
+;; a `vagrant' TRAMP method to interact with vagrant machines.
+;;
 ;;; Installation:
 ;; To use this `vagrant.el' it's necessary to install the [vagrant-info][] plugin.
 ;;
@@ -36,11 +36,11 @@
 ;; You can get a complete list of your available vagrant machines with
 ;; `M-x vagrant-list-machines`.
 ;;
-;; The `vagrant' TRAMP method work by using an custom ssh configfile
+;; The `vagrant' TRAMP method works by using an custom ssh configfile
 ;; (`vagrant-ssh-config-file') for vagrant machines, so you need to add manually
 ;; the ssh-config of a machine with `M-x vagrant-add-ssh-config`.
 ;;
-;;; Troubleshooting
+;;; Troubleshooting:
 ;; + **My machine doesn't shows up**
 ;;
 ;;   `vagrant.el' uses [vagrant-info][] and this plugin uses `global-status',
@@ -63,25 +63,18 @@
 (require 'tramp)
 (require 'tramp-cache)
 
-(require 's)
-
 (defgroup vagrant nil
-  "Interaction with vagrant"
+  "Interact with vagrant machines"
   :prefix "vagrant-"
   :group 'applications)
 
 (defcustom vagrant-executable "vagrant"
-  "Absolute vagrant executable path."
+  "Vagrant executable path."
   :type 'string
   :group 'vagrant)
 
-(defcustom vagrant-buffer-name "*Vagrant*"
+(defcustom vagrant-machines-buffer-name "*vagrant-machines*"
   "Vagrant buffer name for list machines."
-  :type 'string
-  :group 'vagrant)
-
-(defcustom vagrant-process-buffer-name "*vagrant-process*"
-  "Vagrant buffer name for commands output."
   :type 'string
   :group 'vagrant)
 
@@ -112,106 +105,91 @@
 (define-error 'vagrant-machine-notfound "Vagrant machine not found" 'vagrant-error)
 (define-error 'vagrant-command-error "Vagrant command exited abnormally" 'vagrant-error)
 
-(defun vagrant-machines ()
+(defun vagrant--machines ()
   "Fetch the vagrant machines."
   (unless vagrant-machines-already-fetched
     (setq vagrant-machines-already-fetched t
           vagrant-machines (cl-loop for line in (cdr (process-lines vagrant-executable "info-index"))
-                                    for value = (s-split "," line)
+                                    for value = (split-string line ",")
                                     collect (cl-multiple-value-bind (id name provider state directory) value
-                                              (cons (intern id)
+                                              (cons id
                                                     (vagrant-machine--create :id id :name name :provider provider :state state :directory directory))))))
   vagrant-machines)
 
-(defun vagrant-process-async (&rest args)
-  "Start a vagrant process with ARGS and return the process object."
-  (let* ((process-connection-type nil)
-         (process (apply #'start-process
-                         (file-name-nondirectory vagrant-executable)
-                         vagrant-process-buffer-name
-                         vagrant-executable
-                         args)))
-    (message "Executing '%s %s'" vagrant-executable (mapconcat 'identity args " "))
-    (set-process-sentinel process 'vagrant-process-sentinel)
-    process))
-
-(defun vagrant-process-sentinel (process event)
-  (when (eq 'exit (process-status process))
-    (if (zerop (process-exit-status process))
-        (message "%s finished" (process-name process))
-      (signal 'vagrant-command-error (list (format "%s exited with exit code %s" (process-name process) (process-exit-status process)))))))
+(defun vagrant--run-subcommand (&rest args)
+  "Run vagrant subcommand with ARGS."
+  (let ((command (mapconcat 'identity (cons vagrant-executable args) " ")))
+    (compilation-start command nil
+                       (lambda (_) (format "*Vagrant: %s*" command)))))
 
 ;;;###autoload
 (defun vagrant-up-machine (id)
   "Start up a vagrant machine with ID."
-  (interactive (vagrant-read-machine-id))
-  (vagrant-process-async "up" id))
+  (interactive (vagrant--read-machine-id))
+  (vagrant--run-subcommand "up" "--no-color" id))
 
 ;;;###autoload
 (defun vagrant-halt-machine (id)
   "Halt a vagrant machine with ID."
-  (interactive (vagrant-read-machine-id))
-  (vagrant-process-async "halt" id))
+  (interactive (vagrant--read-machine-id))
+  (vagrant--run-subcommand "halt" "--no-color" id))
 
 ;;;###autoload
 (defun vagrant-reload-machine (id)
   "Reload a vagrant machine with ID."
-  (interactive (vagrant-read-machine-id))
-  (vagrant-process-async "reload" id))
+  (interactive (vagrant--read-machine-id))
+  (vagrant--run-subcommand "reload" "--no-color" id))
 
 ;;;###autoload
 (defun vagrant-resume-machine (id)
   "Resume a vagrant machine with ID."
-  (interactive (vagrant-read-machine-id))
-  (vagrant-process-async "resume" id))
+  (interactive (vagrant--read-machine-id))
+  (vagrant--run-subcommand "resume" "--no-color" id))
 
 ;;;###autoload
 (defun vagrant-suspend-machine (id)
   "Suspend a vagrant machine with ID."
-  (interactive (vagrant-read-machine-id))
-  (vagrant-process-async "suspend" id))
+  (interactive (vagrant--read-machine-id))
+  (vagrant--run-subcommand "suspend" "--no-color" id))
 
 ;;;###autoload
 (defun vagrant-provision-machine (id)
   "Provision a vagrant machine with ID."
-  (interactive (vagrant-read-machine-id))
-  (vagrant-process-async "provision" id))
+  (interactive (vagrant--read-machine-id))
+  (vagrant--run-subcommand "provision" "--no-color" id))
 
 ;;;###autoload
 (defun vagrant-destroy-machine (id)
   "Provision a vagrant machine with ID."
-  (interactive (vagrant-read-machine-id))
+  (interactive (vagrant--read-machine-id))
   (when (or vagrant-disable-asking
-            (y-or-n-p (format "Are you sure you want to destroy the '%s' VM?" id)))
-    (vagrant-process-async "destroy" id "-f")))
+            (y-or-n-p (format "Are you sure you want to destroy the '%s' VM? " id)))
+    (vagrant--run-subcommand "destroy" "--no-color" "--force" id)))
 
 ;;;###autoload
 (defun vagrant-edit-vagrantfile (id)
   "Edit Vagrantfile of a vagrant machine with ID."
-  (interactive (vagrant-read-machine-id))
-  (let* ((id (if (stringp id) (intern id) id))
-         (machine (cdr-safe (assq id (vagrant-machines)))))
-    (unless machine
-      (signal 'vagrant-machine-notfound (list (format "Machine with ID='%s' not found" id))))
-    (find-file (expand-file-name "Vagrantfile"
-                                 (vagrant-machine-directory machine)))))
+  (interactive (vagrant--read-machine-id))
+  (find-file (expand-file-name "Vagrantfile"
+                               (vagrant-machine-directory (or (assoc-default id vagrant-machines)
+                                                              (signal 'vagrant-machine-notfound (list id)))))))
 
 ;;;###autoload
 (defun vagrant-add-ssh-config (id)
   "Add `ssh-info' of a machine with ID to `vagrant-ssh-config-file'."
-  (interactive (vagrant-read-machine-id))
+  (interactive (vagrant--read-machine-id))
   (with-temp-buffer
     (let ((exit-status (call-process vagrant-executable nil (current-buffer) nil "info-ssh" id)))
       (if (zerop exit-status)
           (write-region (buffer-string) nil vagrant-ssh-config-file 'append)
         (signal 'vagrant-command-error (list (buffer-string)))))))
 
-(defun vagrant-read-machine-id ()
+(defun vagrant--read-machine-id ()
   "Read a vagrant machine id."
-  (list (if (and (eq major-mode 'vagrant-machine-list-mode) (tabulated-list-get-id))
-            (symbol-name (tabulated-list-get-id))
+  (list (if (eq major-mode 'vagrant-machine-list-mode)
+            (tabulated-list-get-id)
           (completing-read "vagrant machine id: "
-                           (mapcar #'(lambda (e) (symbol-name (car e))) (vagrant-machines))
+                           (vagrant--machines)
                            nil nil nil nil
                            (tabulated-list-get-id)))))
 
@@ -220,9 +198,9 @@
   "Reload `vagrant-mahines'."
   (interactive)
   (setq vagrant-machines-already-fetched nil)
-  (vagrant-machines))
+  (vagrant--machines))
 
-(defun vagrant-generate-table-entry (item)
+(defun vagrant--generate-table-entry (item)
   "Generate a tabulate mode entry from an ITEM."
   (cl-destructuring-bind (id . machine) item
     (list id (vector (vagrant-machine-id machine)
@@ -231,19 +209,20 @@
                      (vagrant-machine-state machine)
                      (vagrant-machine-directory machine)))))
 
-(defun vagrant-generate-table-entries ()
-  (mapcar #'vagrant-generate-table-entry (vagrant-machines)))
+(defun vagrant--generate-table-entries ()
+  "Generate tabulate mode entries from `vagrant-machines'."
+  (mapcar #'vagrant--generate-table-entry (vagrant--machines)))
 
 (defvar vagrant-machine-list-mode-map
   (let ((map (make-keymap)))
-    (define-key map (kbd "U") 'vagrant-up-machine)
-    (define-key map (kbd "H") 'vagrant-halt-machine)
-    (define-key map (kbd "R") 'vagrant-reload-machine)
-    (define-key map (kbd "D") 'vagrant-destroy-machine)
-    (define-key map (kbd "S") 'vagrant-suspend-machine)
-    (define-key map (kbd "P") 'vagrant-provision-machine)
-    (define-key map (kbd "E") 'vagrant-edit-vagrantfile)
-    (define-key map (kbd "C") 'vagrant-add-ssh-config)
+    (define-key map (kbd "U") #'vagrant-up-machine)
+    (define-key map (kbd "H") #'vagrant-halt-machine)
+    (define-key map (kbd "R") #'vagrant-reload-machine)
+    (define-key map (kbd "D") #'vagrant-destroy-machine)
+    (define-key map (kbd "S") #'vagrant-suspend-machine)
+    (define-key map (kbd "P") #'vagrant-provision-machine)
+    (define-key map (kbd "E") #'vagrant-edit-vagrantfile)
+    (define-key map (kbd "C") #'vagrant-add-ssh-config)
     map)
   "Keymap for vagrant-list-machines-mode.")
 
@@ -257,27 +236,22 @@
                                ("state" 10 nil)
                                ("directory" 60 nil)])
   (add-hook 'tabulated-list-revert-hook 'vagrant-reload-machines nil t)
-  (setq tabulated-list-entries 'vagrant-generate-table-entries)
+  (setq tabulated-list-entries 'vagrant--generate-table-entries)
   (tabulated-list-init-header))
 
 ;;;###autoload
 (defun vagrant-list-machines ()
   "Show the list of available vagrant machines."
   (interactive)
-  (with-current-buffer (get-buffer-create vagrant-buffer-name)
+  (with-current-buffer (get-buffer-create vagrant-machines-buffer-name)
     (vagrant-machine-list-mode)
     (tabulated-list-print)
     (pop-to-buffer (current-buffer))))
 
-(defun vagrant-create-file-if-not-exists (filename)
+(defun vagrant--create-file-if-not-exists (filename)
   "Create an empty file with name FILENAME."
   (unless (file-exists-p filename)
     (call-process "touch" nil nil nil filename)))
-
-(defun vagrant-delete-file-if-exists (filename)
-  "Delete file with FILENAME if exists."
-  (when (file-exists-p filename)
-    (delete-file filename)))
 
 ;;;###autoload
 (defun vagrant-tramp-cleanup-ssh-config ()
@@ -288,8 +262,9 @@ This involves:
 + Remove vagrant entries from `tramp-cache-data'.
 + Dump `tramp-persistency-file-name'."
   (interactive)
-  (vagrant-delete-file-if-exists vagrant-ssh-config-file)
-  (vagrant-create-file-if-not-exists vagrant-ssh-config-file)
+  (when (file-exists-p vagrant-ssh-config-file)
+    (delete-file vagrant-ssh-config-file))
+  (vagrant--create-file-if-not-exists vagrant-ssh-config-file)
   (maphash (lambda (key _value)
              (when (and (and (vectorp key))
                         (string-equal vagrant-tramp-method (tramp-file-name-method key)))
@@ -297,12 +272,13 @@ This involves:
            tramp-cache-data)
   (setq tramp-cache-data-changed t)
   (if (zerop (hash-table-count tramp-cache-data))
-      (vagrant-delete-file-if-exists tramp-persistency-file-name)
+      (when (file-exists-p tramp-persistency-file-name)
+        (delete-file tramp-persistency-file-name))
     (tramp-dump-connection-properties)))
 
 ;;;###tramp-autoload
 (defconst vagrant-tramp-completion-function-alist
-  `((vagrant-create-file-if-not-exists ,vagrant-ssh-config-file)
+  `((vagrant--create-file-if-not-exists ,vagrant-ssh-config-file)
     (tramp-parse-sconfig               ,vagrant-ssh-config-file))
   "Default list of (FUNCTION FILE) pairs to be examined for vagrant method.")
 

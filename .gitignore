@@ -1,6 +1,4 @@
 *~
 *.elc
 .cask
-.vagrant
-elpa
 make-readme-markdown.el

@@ -1,33 +1,37 @@
-CASK    ?= cask
-WGET    ?= wget
-EMACS   ?= emacs
-BATCH    = $(EMACS) --batch -Q -L .
-BATCHC   = $(BATCH) -f batch-byte-compile
-TESTARGS =
+CASK  ?= cask
+WGET  ?= wget
+EMACS ?= emacs
 
-ELS  = vagrant.el
-ELCS = $(ELS:.el=.elc)
+EMACSFLAGS =
+EMACSBATCH = $(EMACS) --batch -Q $(EMACSFLAGS)
 
-.PHONY: all
-all: lisp README.md
+export EMACS
 
-.PHONY: lisp
-lisp: elpa $(ELCS)
+PKGDIR := $(shell EMACS=$(EMACS) $(CASK) package-directory)
 
-elpa: Cask
+SRCS = vagrant.el
+OBJS = $(SRCS:.el=.elc)
+
+.PHONY: all compile clean
+
+all: compile README.md
+
+compile: $(OBJS)
+
+clean:
+	$(RM) $(OBJS)
+
+%.elc: %.el $(PKGDIR)
+	$(CASK) exec $(EMACSBATCH) -f batch-byte-compile $<
+
+$(PKGDIR) : Cask
 	$(CASK) install
-	touch $@
+	touch $(PKGDIR)
 
-%.elc: %.el
-	$(CASK) exec $(BATCHC) $<
-
-README.md: make-readme-markdown.el $(ELS)
-	$(CASK) exec $(BATCH) --script $< <$(ELS) >$@ 2>/dev/null
+README.md: make-readme-markdown.el $(SRCS)
+	$(CASK) exec $(EMACSBATCH) --script $< <$(SRCS) >$@ 2>/dev/null
 
 make-readme-markdown.el:
 	$(WGET) -q -O $@ "https://raw.github.com/mgalgs/make-readme-markdown/master/make-readme-markdown.el"
 
 .INTERMEDIATE: make-readme-markdown.el
-
-clean:
-	$(RM) $(ELCS)

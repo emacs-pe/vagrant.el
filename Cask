@@ -1,7 +1,8 @@
-(package-file "vagrant.el")
-
+(source gnu)
 (source melpa)
+
+(package-file "vagrant.el")
 
 (development
  (depends-on "ert")
- (depends-on "flycheck-cask"))
+ (depends-on "undercover"))
