@@ -1,6 +1,6 @@
 CASK  ?= cask
 WGET  ?= wget
-EMACS ?= emacs
+EMACS  = emacs
 
 EMACSFLAGS =
 EMACSBATCH = $(EMACS) --batch -Q $(EMACSFLAGS)
@@ -9,8 +9,8 @@ export EMACS
 
 PKGDIR := $(shell EMACS=$(EMACS) $(CASK) package-directory)
 
-SRCS = vagrant.el
-OBJS = $(SRCS:.el=.elc)
+SRCS := $(shell EMACS=$(EMACS) $(CASK) files)
+OBJS  = $(SRCS:.el=.elc)
 
 .PHONY: all compile clean
 
@@ -20,18 +20,19 @@ compile: $(OBJS)
 
 clean:
 	$(RM) $(OBJS)
+	$(RM) *~
 
 %.elc: %.el $(PKGDIR)
 	$(CASK) exec $(EMACSBATCH) -f batch-byte-compile $<
 
-$(PKGDIR) : Cask
+$(PKGDIR): Cask
 	$(CASK) install
 	touch $(PKGDIR)
 
-README.md: make-readme-markdown.el $(SRCS)
-	$(CASK) exec $(EMACSBATCH) --script $< <$(SRCS) >$@ 2>/dev/null
+README.md: el2markdown.el $(SRCS)
+	$(CASK) exec $(EMACSBATCH) -l $< $(SRCS) -f el2markdown-write-readme
 
-make-readme-markdown.el:
-	$(WGET) -q -O $@ "https://raw.github.com/mgalgs/make-readme-markdown/master/make-readme-markdown.el"
+el2markdown.el:
+	$(WGET) -q -O $@ "https://github.com/Lindydancer/el2markdown/raw/master/el2markdown.el"
 
-.INTERMEDIATE: make-readme-markdown.el
+.INTERMEDIATE: el2markdown.el

@@ -1,4 +1,5 @@
 *~
 *.elc
 .cask
-make-readme-markdown.el
+el2markdown.el
+flycheck_vagrant.el
